@@ -10,7 +10,7 @@
 
 int main() {
   int pipe_fd[2];
-  assert(pipe2(pipe_fd, O_NONBLOCK) == 0);
+  assert(pipe(pipe_fd) == 0);
   int read_fd = pipe_fd[0];
   int write_fd = pipe_fd[1];
 
@@ -30,15 +30,15 @@ int main() {
     // parent
     close(write_fd);
 
-    char buf;
     int cnt = 0;
-
+    char buf;
     while (read(read_fd, &buf, 1) != 1) {
       ++cnt;
     }
     assert(buf == 'y');
+    assert(cnt == 0);
 
-    printf("goodbye (%d)\n", cnt);
+    printf("goodbye\n");
     close(read_fd);
   }
   return 0;
