@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
@@ -12,11 +13,16 @@
 #include <time.h>
 #include <unistd.h>
 
-static const int samples = 1024;
+static const int iteration = 10 * 1000 * 1000;
+
+static uint64_t now() {
+  struct timeval tv;
+  assert(gettimeofday(&tv, NULL) == 0);
+  return (uint64_t)tv.tv_sec * 1000 * 1000 + tv.tv_usec;
+}
 
 static const int loops = 1 * 1000 * 1000;
 static int result = 0;
-
 // attention: it will broken on -O2 optimization
 static void *work(void *args) {
   for (int i = 0; i != loops; ++i) {
@@ -67,20 +73,52 @@ static void set_core_to_one() {
   ensure_only_one_cpu_using_fork();
 }
 
+static void measure_context_switch() {
+  int pipe_fds[2];
+  assert(pipe(pipe_fds) == 0);
+  const int read_fd = pipe_fds[0];
+  const int write_fd = pipe_fds[1];
+  printf("iteration: %d\n", iteration);
+
+  const int rc = fork();
+  assert(rc >= 0);
+  if (rc == 0) {
+    // child for write
+    close(read_fd);
+    const uint64_t start = now();
+
+    char ch = 'a';
+    for (int i = 0; i != iteration; ++i) {
+      assert(write(write_fd, &ch, 1) == 1);
+    }
+
+    const uint64_t elapse = now() - start;
+    printf("write time: %" PRIu64 ", avg: %" PRIu64 "\n", elapse,
+           elapse / iteration);
+
+    close(write_fd);
+    _exit(EXIT_SUCCESS);
+  } else {
+    // parent for read
+    close(write_fd);
+    const uint64_t start = now();
+
+    char buf;
+    for (int i = 0; i != iteration; ++i) {
+      assert(read(read_fd, &buf, 1) == 1);
+    }
+
+    const uint64_t elapse = now() - start;
+    printf("read  time: %" PRIu64 ", avg: %" PRIu64 "\n", elapse,
+           elapse / iteration);
+
+    close(read_fd);
+    assert(wait(NULL) == rc);
+  }
+}
+
 int main() {
   set_core_to_one();
-
-  struct timeval *tvs =
-      (struct timeval *)malloc(samples * sizeof(struct timeval));
-
-  for (int i = 0; i != samples; ++i) {
-    assert(gettimeofday(&tvs[i], NULL) == 0);
-  }
-  for (int i = 1; i != samples; ++i) {
-    printf("%ld, elapse %ld\n", tvs[i].tv_usec,
-           tvs[i].tv_usec - tvs[i - 1].tv_usec);
-  }
-
-  free(tvs);
+  measure_context_switch();
   return 0;
 }
