@@ -1,21 +1,23 @@
 #define _GNU_SOURCE
 
 #include <assert.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <sys/sysinfo.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
-static const int iteration = 10 * 1000 * 1000;
+static const int iteration = 1 * 1000 * 1000;
 
-static uint64_t now() {
+static uint64_t now_us() {
   struct timeval tv;
   assert(gettimeofday(&tv, NULL) == 0);
   return (uint64_t)tv.tv_sec * 1000 * 1000 + tv.tv_usec;
@@ -78,47 +80,81 @@ static void measure_context_switch() {
   assert(pipe(pipe_fds) == 0);
   const int read_fd = pipe_fds[0];
   const int write_fd = pipe_fds[1];
-  printf("iteration: %d\n", iteration);
 
   const int rc = fork();
   assert(rc >= 0);
   if (rc == 0) {
     // child for write
     close(read_fd);
-    const uint64_t start = now();
+    const uint64_t start_us = now_us();
 
     char ch = 'a';
     for (int i = 0; i != iteration; ++i) {
       assert(write(write_fd, &ch, 1) == 1);
     }
 
-    const uint64_t elapse = now() - start;
-    printf("write time: %" PRIu64 ", avg: %" PRIu64 "\n", elapse,
-           elapse / iteration);
+    const uint64_t elapse_us = now_us() - start_us;
+    printf("context switch (write) time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
+           elapse_us, elapse_us * 1000 / iteration);
 
     close(write_fd);
     _exit(EXIT_SUCCESS);
   } else {
     // parent for read
     close(write_fd);
-    const uint64_t start = now();
+    const uint64_t start_us = now_us();
 
     char buf;
     for (int i = 0; i != iteration; ++i) {
       assert(read(read_fd, &buf, 1) == 1);
     }
 
-    const uint64_t elapse = now() - start;
-    printf("read  time: %" PRIu64 ", avg: %" PRIu64 "\n", elapse,
-           elapse / iteration);
+    const uint64_t elapse_us = now_us() - start_us;
+    printf("context switch (read)  time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
+           elapse_us, elapse_us * 1000 / iteration);
 
     close(read_fd);
     assert(wait(NULL) == rc);
   }
 }
 
+static void measure_read_syscall() {
+  const char *file = "/dev/zero";
+  const uint64_t start_us = now_us();
+  const int fd = open(file, O_RDONLY);
+
+  char buf;
+  for (int i = 0; i != iteration; ++i) {
+    assert(read(fd, &buf, 1) == 1);
+    assert(buf == '\0');
+  }
+
+  const uint64_t elapse_us = now_us() - start_us;
+  printf("read  from %s (1 byte) time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
+         file, elapse_us, elapse_us * 1000 / iteration);
+}
+
+static void measure_write_syscall() {
+  const char *file = "/dev/null";
+  const uint64_t start_us = now_us();
+  const int fd = open(file, O_WRONLY);
+
+  char buf = 'y';
+  for (int i = 0; i != iteration; ++i) {
+    assert(write(fd, &buf, 1) == 1);
+  }
+
+  const uint64_t elapse_us = now_us() - start_us;
+  printf("write into %s (1 byte) time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
+         file, elapse_us, elapse_us * 1000 / iteration);
+}
+
 int main() {
   set_core_to_one();
+
+  printf("iteration: %d\n", iteration);
+  measure_write_syscall();
+  measure_read_syscall();
   measure_context_switch();
   return 0;
 }
