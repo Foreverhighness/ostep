@@ -1,6 +1,7 @@
 # modified from https://makefiletutorial.com/
 CC = gcc
 CFLAGS = -m64 -Og -g -Wall -Werror
+LDFLAGS = -pthread
 
 BUILD_DIR := build
 
