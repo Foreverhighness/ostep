@@ -129,6 +129,18 @@ static void measure_context_switch() {
   }
 }
 
+static void measure_getpid_syscall() {
+  const uint64_t start_us = now_us();
+
+  for (int i = 0; i != iteration; ++i) {
+    getpid();
+  }
+
+  const uint64_t elapse_us = now_us() - start_us;
+  printf("getpid time: %" PRIu64 "us, avg: %" PRIu64 "ns\n", elapse_us,
+         elapse_us * 1000 / iteration);
+}
+
 static void measure_read_syscall() {
   const char *file = "/dev/zero";
   const uint64_t start_us = now_us();
@@ -164,6 +176,7 @@ int main() {
   set_core_to_one();
 
   printf("iteration: %d\n", iteration);
+  measure_getpid_syscall();
   measure_write_syscall();
   measure_read_syscall();
   measure_context_switch();
