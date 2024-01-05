@@ -2,8 +2,10 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <sys/sem.h>
 #include <unistd.h>
 
@@ -69,6 +71,26 @@ void sem_ipc() {
     printf("goodbye\n");
 
     semctl(semid, 0, IPC_RMID);
+    exit(EXIT_SUCCESS);
+  }
+}
+
+void sem_mmap() {
+  sem_t *sem = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE,
+                    MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+  assert(sem != MAP_FAILED);
+  assert(sem_init(sem, 1, 0) == 0);
+  int rc = fork();
+  assert(rc >= 0);
+  if (rc == 0) {
+    // child
+    printf("hello\n");
+    assert(sem_post(sem) == 0);
+    _exit(EXIT_SUCCESS);
+  } else {
+    // parent
+    assert(sem_wait(sem) == 0);
+    printf("goodbye\n");
     exit(EXIT_SUCCESS);
   }
 }
