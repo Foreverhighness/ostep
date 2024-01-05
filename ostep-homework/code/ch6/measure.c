@@ -75,45 +75,56 @@ static void set_core_to_one() {
   ensure_only_one_cpu_using_fork();
 }
 
+// https://github.com/intel/lmbench/blob/master/src/lat_ctx.c
 static void measure_context_switch() {
-  int pipe_fds[2];
-  assert(pipe(pipe_fds) == 0);
-  const int read_fd = pipe_fds[0];
-  const int write_fd = pipe_fds[1];
+  int pipe_fds[2][2];
+  assert(pipe(pipe_fds[0]) == 0);
+  assert(pipe(pipe_fds[1]) == 0);
+  const int parent_read_fd = pipe_fds[0][0];
+  const int parent_write_fd = pipe_fds[1][1];
+  const int child_read_fd = pipe_fds[1][0];
+  const int child_write_fd = pipe_fds[0][1];
+
+  int msg;
+  const size_t size = sizeof(msg);
 
   const int rc = fork();
   assert(rc >= 0);
   if (rc == 0) {
     // child for write
-    close(read_fd);
+    close(parent_read_fd);
+    close(parent_write_fd);
     const uint64_t start_us = now_us();
 
-    char ch = 'a';
     for (int i = 0; i != iteration; ++i) {
-      assert(write(write_fd, &ch, 1) == 1);
+      assert(write(child_write_fd, &msg, size) == size);
+      assert(read(child_read_fd, &msg, size) == size);
     }
 
     const uint64_t elapse_us = now_us() - start_us;
     printf("context switch (write) time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
-           elapse_us, elapse_us * 1000 / iteration);
+           elapse_us, elapse_us * 1000 / iteration / 2);
 
-    close(write_fd);
+    close(child_read_fd);
+    close(child_write_fd);
     _exit(EXIT_SUCCESS);
   } else {
     // parent for read
-    close(write_fd);
+    close(child_read_fd);
+    close(child_write_fd);
     const uint64_t start_us = now_us();
 
-    char buf;
     for (int i = 0; i != iteration; ++i) {
-      assert(read(read_fd, &buf, 1) == 1);
+      assert(write(parent_write_fd, &msg, size) == size);
+      assert(read(parent_read_fd, &msg, size) == size);
     }
 
     const uint64_t elapse_us = now_us() - start_us;
     printf("context switch (read)  time: %" PRIu64 "us, avg: %" PRIu64 "ns\n",
-           elapse_us, elapse_us * 1000 / iteration);
+           elapse_us, elapse_us * 1000 / iteration / 2);
 
-    close(read_fd);
+    close(parent_read_fd);
+    close(parent_write_fd);
     assert(wait(NULL) == rc);
   }
 }
