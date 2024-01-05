@@ -5,9 +5,12 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mman.h>
 #include <sys/sysinfo.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <time.h>
+#include <unistd.h>
 
 static const int samples = 1024;
 
@@ -20,6 +23,26 @@ static void *work(void *args) {
     ++result;
   }
   return NULL;
+}
+
+static void ensure_only_one_cpu_using_fork() {
+  int *res = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE,
+                  MAP_ANONYMOUS | MAP_SHARED, -1, 0);
+  assert(res != MAP_FAILED);
+
+  int rc = fork();
+  assert(rc >= 0);
+  for (int i = 0; i != loops; ++i) {
+    *res += 1;
+  }
+  if (rc == 0) {
+    _exit(EXIT_SUCCESS);
+  } else {
+    assert(wait(NULL) == rc);
+  }
+
+  assert(*res == loops * 2);
+  assert(munmap(res, sizeof(int)) == 0);
 }
 
 static void ensure_only_one_cpu() {
@@ -38,9 +61,10 @@ static void set_core_to_one() {
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(0, &cpuset);
-  sched_setaffinity(0, sizeof(cpuset), &cpuset);
+  assert(sched_setaffinity(0, sizeof(cpuset), &cpuset) >= 0);
 
   ensure_only_one_cpu();
+  ensure_only_one_cpu_using_fork();
 }
 
 int main() {
