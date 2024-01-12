@@ -6,7 +6,7 @@ function echo_red() {
   echo -e "${RED}${1}${NC}"
 }
 
-make build/null build/q4 build/q5 build/q6 &>/dev/null
+make all &>/dev/null
 
 echo_red Q2:
 gdb build/null <<<'run'
