@@ -31,13 +31,17 @@ T Vec_at(const Vec *self, const size_t index) {
 }
 
 const T *Vec_get(const Vec *self, const size_t index) {
-  check_bound();
-  return &self->data[index];
+  if (0 <= index && index < self->len) {
+    return &self->data[index];
+  }
+  return NULL;
 }
 
 T *Vec_get_mut(Vec *self, const size_t index) {
-  check_bound();
-  return &self->data[index];
+  if (0 <= index && index < self->len) {
+    return &self->data[index];
+  }
+  return NULL;
 }
 
 void Vec_push(Vec *self, const T value) {
