@@ -32,3 +32,7 @@ valgrind --leak-check=yes build/q7
 
 echo_red Q8:
 valgrind --leak-check=yes build/q8
+
+echo_red Q9:
+man 1 gdb
+man 1 valgrind
