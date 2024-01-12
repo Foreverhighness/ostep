@@ -26,6 +26,9 @@ echo_red Q6:
 build/q6
 valgrind --leak-check=yes build/q6
 
-echo Q7:
+echo_red Q7:
 build/q7
 valgrind --leak-check=yes build/q7
+
+echo_red Q8:
+valgrind --leak-check=yes build/q8
