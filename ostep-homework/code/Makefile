@@ -6,12 +6,15 @@ LDFLAGS = -pthread
 BUILD_DIR := build
 
 SRCS := $(shell find . -name "*.c")
-EXES := $(basename $(SRCS))
+RUNS := $(basename $(SRCS))
+EXES := $(RUNS:%=$(BUILD_DIR)/%)
+
+run: $(RUNS)
 
 all: $(EXES)
 
-$(EXES): %: $(BUILD_DIR)/%
-	$<
+$(RUNS): %: $(BUILD_DIR)/%
+	-$<
 
 # implied in default targets
 # $(BUILD_DIR)/%: $(BUILD_DIR)/%.o
@@ -25,4 +28,4 @@ $(BUILD_DIR)/%.o: %.c
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: all clean $(EXES)
+.PHONY: run all clean $(RUNS)
