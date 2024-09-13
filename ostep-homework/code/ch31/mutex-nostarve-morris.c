@@ -16,10 +16,10 @@
 
 typedef struct __ns_mutex_t {
   int waiter;
-  int holder;
+  int ticket_holder;
   sem_t waiter_lock;
-  sem_t holder_lock;
-  sem_t lock;
+  sem_t ticket_lock;
+  sem_t passing;
 } ns_mutex_t;
 
 ns_mutex_t m;
@@ -27,10 +27,10 @@ int loops;
 
 void ns_mutex_init(ns_mutex_t *m) {
   m->waiter = 0;
-  m->holder = 0;
+  m->ticket_holder = 0;
   Sem_init(&m->waiter_lock, 1);
-  Sem_init(&m->holder_lock, 1);
-  Sem_init(&m->lock, 0);
+  Sem_init(&m->ticket_lock, 1);
+  Sem_init(&m->passing, 0);
 }
 
 void ns_mutex_acquire(ns_mutex_t *m) {
@@ -38,8 +38,8 @@ void ns_mutex_acquire(ns_mutex_t *m) {
   m->waiter += 1;
   Sem_post(&m->waiter_lock);
 
-  Sem_wait(&m->holder_lock);
-  m->holder += 1;
+  Sem_wait(&m->ticket_lock);
+  m->ticket_holder += 1;
 
   Sem_wait(&m->waiter_lock);
   m->waiter -= 1;
@@ -48,20 +48,20 @@ void ns_mutex_acquire(ns_mutex_t *m) {
   Sem_post(&m->waiter_lock);
 
   if (no_waiter) {
-    Sem_post(&m->lock);
+    Sem_post(&m->passing);
   } else {
-    Sem_post(&m->holder_lock);
+    Sem_post(&m->ticket_lock);
   }
 
-  Sem_wait(&m->lock);
-  m->holder -= 1;
+  Sem_wait(&m->passing);
+  m->ticket_holder -= 1;
 }
 
 void ns_mutex_release(ns_mutex_t *m) {
-  if (m->holder == 0) {
-    Sem_post(&m->holder_lock);
+  if (m->ticket_holder == 0) {
+    Sem_post(&m->ticket_lock);
   } else {
-    Sem_post(&m->lock);
+    Sem_post(&m->passing);
   }
 }
 
